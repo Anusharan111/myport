@@ -12,11 +12,18 @@ class Config:
     # 2) On Vercel serverless without DATABASE_URL, fallback to /tmp/portfolio.db (writable).
     # 3) Locally, fallback to BASE_DIR/portfolio.db.
     _db_url = os.environ.get("DATABASE_URL")
-    if _db_url and _db_url.startswith("postgres://"):
-        _db_url = _db_url.replace("postgres://", "postgresql://", 1)
-
     if _db_url:
+        if _db_url.startswith("postgres://"):
+            _db_url = _db_url.replace("postgres://", "postgresql+pg8000://", 1)
+        elif _db_url.startswith("postgresql://") and not _db_url.startswith("postgresql+"):
+            _db_url = _db_url.replace("postgresql://", "postgresql+pg8000://", 1)
+        
+        # If pg8000 is used with query params like ?sslmode=require, clean params for pg8000
+        if "postgresql+pg8000://" in _db_url and "?" in _db_url:
+            _db_url = _db_url.split("?")[0]
+
         SQLALCHEMY_DATABASE_URI = _db_url
+        SQLALCHEMY_ENGINE_OPTIONS = {"connect_args": {"ssl_context": True}}
     elif os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"):
         SQLALCHEMY_DATABASE_URI = "sqlite:////tmp/portfolio.db"
     else:
