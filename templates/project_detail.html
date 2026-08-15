@@ -3,7 +3,7 @@
 {% block content %}
 
 <section style="border-top:none; padding-bottom:0;">
-  <div class="wrap">
+  <div class="wrap reveal">
     <a href="{{ url_for('projects') }}" style="font-family:var(--font-mono); font-size:.85rem; color:var(--text-dim);">← back to projects</a>
     <div style="margin-top:24px; display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:16px;">
       <div>
@@ -21,23 +21,30 @@
 
 <section style="border-top:none;">
   <div class="wrap">
-    <div class="project-thumb" style="border-radius:var(--radius); border:1px solid var(--line); margin-bottom:40px; aspect-ratio:16/8;">
+    <div class="project-thumb reveal" style="border-radius:var(--radius-lg); border:1px solid var(--line); margin-bottom:40px; aspect-ratio:16/8;">
       {% if project.image %}
-        <img src="{{ url_for('static', filename='uploads/projects/' + project.image) }}" alt="{{ project.title }}">
+        <img src="{{ project.image | media_url('projects') }}" alt="{{ project.title }}">
       {% else %}
         <span class="placeholder">no preview image</span>
       {% endif %}
     </div>
 
-    <div class="about-grid" style="grid-template-columns: 1fr .5fr;">
+    <div class="about-grid reveal" style="--i:1; grid-template-columns: 1fr .5fr;">
       <div>
         <h2 style="font-size:1.3rem;">Overview</h2>
         <p style="color:var(--text); white-space:pre-line;">{{ project.description }}</p>
       </div>
       <div>
-        <h2 style="font-size:1.3rem;">Stack</h2>
-        <div class="tag-row">
-          {% for tech in project.tech_list() %}<span class="tag">--{{ tech }}</span>{% endfor %}
+        <h2 style="font-size:1.3rem;">Details</h2>
+        <div class="meta-list">
+          <div><span>featured</span><span>{% if project.featured %}on home page{% else %}hidden{% endif %}</span></div>
+          <div><span>added</span><span>{{ project.created_at.strftime('%b %Y') }}</span></div>
+        </div>
+        <div style="margin-top:20px;">
+          <h2 style="font-size:1.3rem;">Stack</h2>
+          <div class="tag-row">
+            {% for tech in project.tech_list() %}<span class="tag">--{{ tech }}</span>{% endfor %}
+          </div>
         </div>
       </div>
     </div>

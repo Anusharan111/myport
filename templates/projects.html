@@ -3,35 +3,37 @@
 {% block content %}
 
 <section style="border-top:none; padding-bottom:40px;">
-  <div class="wrap">
+  <div class="wrap reveal">
     <span class="section-label">index</span>
     <h1 style="font-size:clamp(2rem,4vw,3rem);">All projects</h1>
-    <p style="max-width:60ch;">A record of things I've designed, built, and shipped.</p>
+    <p style="max-width:60ch;">A record of things I've designed, built, and shipped — numbered in the order they appear on the home page.</p>
   </div>
 </section>
 
 <section style="border-top:none; padding-top:0;">
   <div class="wrap">
     {% if projects %}
-    <div class="project-grid">
+    <div class="index-list reveal" style="--i:1">
       {% for project in projects %}
-      <a class="project-card" href="{{ url_for('project_detail', slug=project.slug) }}">
-        <div class="project-thumb">
-          {% if project.image %}
-            <img src="{{ url_for('static', filename='uploads/projects/' + project.image) }}" alt="{{ project.title }}">
-          {% else %}
-            <span class="placeholder">no preview</span>
-          {% endif %}
-        </div>
-        <div class="project-body">
-          <h3>{{ project.title }}</h3>
-          <p>{{ project.summary }}</p>
+      <a class="index-row" href="{{ url_for('project_detail', slug=project.slug) }}">
+        <span class="index-num">{{ "%02d" | format(loop.index) }}</span>
+        <span class="index-main">
+          <span class="index-title">{{ project.title }}</span>
+          <span class="index-meta">{{ project.summary }}</span>
           {% if project.tech_list() %}
-          <div class="tag-row">
+          <span class="tag-row">
             {% for tech in project.tech_list()[:4] %}<span class="tag">--{{ tech }}</span>{% endfor %}
-          </div>
+          </span>
           {% endif %}
-        </div>
+        </span>
+        <span class="index-thumb">
+          {% if project.image %}
+            <img src="{{ project.image | media_url('projects') }}" alt="{{ project.title }}">
+          {% else %}
+            no preview
+          {% endif %}
+        </span>
+        <span class="index-arrow" aria-hidden="true">→</span>
       </a>
       {% endfor %}
     </div>

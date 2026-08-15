@@ -9,19 +9,47 @@
 </div>
 
 {% if projects %}
-<table class="admin-table">
-  <thead><tr><th>Title</th><th>Stack</th><th>Featured</th><th>Order</th><th></th></tr></thead>
-  <tbody>
-    {% for p in projects %}
+<div class="admin-card reorder-note">
+  <p class="form-hint" style="margin:0; display:flex; align-items:center; gap:8px;">
+    <span class="grip" aria-hidden="true">⋮⋮</span>
+    Drag rows or use the ↑ / ↓ buttons to set the order projects appear on the
+    home page — featured projects show first, in this order. Changes save automatically.
+  </p>
+</div>
+
+<table class="admin-table projects-table" id="projectsTable">
+  <thead>
     <tr>
+      <th class="col-grip" aria-label="Reorder"></th>
+      <th class="col-pos">#</th>
+      <th>Title</th>
+      <th>Stack</th>
+      <th>Home page</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody id="projectsBody">
+    {% for p in projects %}
+    <tr data-id="{{ p.id }}" draggable="true">
+      <td class="col-grip">
+        <button type="button" class="grip" title="Drag to reorder" aria-label="Drag to reorder">⋮⋮</button>
+      </td>
+      <td class="col-pos"><span class="pos-num">{{ "%02d" | format(loop.index) }}</span></td>
       <td>
         <strong>{{ p.title }}</strong><br>
         <span class="form-hint"><a href="{{ url_for('project_detail', slug=p.slug) }}" target="_blank">/projects/{{ p.slug }}</a></span>
       </td>
-      <td>{{ p.tech_stack or '—' }}</td>
-      <td>{% if p.featured %}<span class="badge badge-amber">featured</span>{% else %}<span class="badge badge-gray">no</span>{% endif %}</td>
-      <td>{{ p.sort_order }}</td>
+      <td class="col-stack">{{ p.tech_stack or '—' }}</td>
+      <td class="col-featured">
+        {% if p.featured %}
+          <span class="badge badge-amber">featured</span>
+        {% else %}
+          <span class="badge badge-gray">hidden</span>
+        {% endif %}
+      </td>
       <td class="row-actions">
+        <button type="button" class="btn btn-ghost btn-sm move-up" title="Move up" aria-label="Move up">↑</button>
+        <button type="button" class="btn btn-ghost btn-sm move-down" title="Move down" aria-label="Move down">↓</button>
         <a href="{{ url_for('admin_project_edit', project_id=p.id) }}" class="btn btn-ghost btn-sm">Edit</a>
         <form method="POST" action="{{ url_for('admin_project_delete', project_id=p.id) }}" onsubmit="return confirm('Delete this project? This cannot be undone.');">
           <button type="submit" class="btn btn-danger btn-sm">Delete</button>

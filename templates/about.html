@@ -4,10 +4,10 @@
 
 <section style="border-top:none;">
   <div class="wrap about-grid">
-    <div>
+    <div class="reveal">
       <div class="about-photo">
         {% if profile.profile_image %}
-          <img src="{{ url_for('static', filename='uploads/profile/' + profile.profile_image) }}" alt="{{ profile.name }}">
+          <img src="{{ profile.profile_image | media_url('profile') }}" alt="{{ profile.name }}">
         {% endif %}
       </div>
       <div class="meta-list">
@@ -16,7 +16,7 @@
         {% if profile.phone %}<div><span>phone</span><span>{{ profile.phone }}</span></div>{% endif %}
       </div>
     </div>
-    <div>
+    <div class="reveal" style="--i:1">
       <span class="section-label">about</span>
       <h1 style="font-size:clamp(2rem,4vw,2.8rem);">{{ profile.title }}</h1>
       <p style="color:var(--text); font-size:1.05rem; white-space:pre-line;">{{ profile.bio }}</p>

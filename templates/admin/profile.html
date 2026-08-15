@@ -8,7 +8,7 @@
 <div class="admin-card">
   <form method="POST" enctype="multipart/form-data">
     {% if profile.profile_image %}
-      <img class="current-image" src="{{ url_for('static', filename='uploads/profile/' + profile.profile_image) }}" alt="Current photo">
+      <img class="current-image" src="{{ profile.profile_image | media_url('profile') }}" alt="Current photo">
     {% endif %}
     <div class="form-group">
       <label for="profile_image">Profile photo</label>

@@ -15,6 +15,11 @@ from werkzeug.utils import secure_filename
 from config import Config
 from models import db, Admin, Profile, Skill, Project, Message
 
+try:
+    from vercel_blob import put as blob_put, delete as blob_delete
+except ImportError:
+    blob_put = blob_delete = None
+
 app = Flask(__name__)
 app.config.from_object(Config)
 
@@ -30,6 +35,31 @@ login_manager.init_app(app)
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(Admin, int(user_id))
+
+
+# ---------------------------------------------------------------------------
+# Database bootstrap
+# ---------------------------------------------------------------------------
+# Vercel runs the app as a serverless function, so there is no shell to run
+# `flask init-db`. Instead, tables + default admin/profile are created on boot.
+# On Vercel, set ADMIN_USERNAME / ADMIN_PASSWORD env vars to choose your login.
+
+def init_db_data():
+    try:
+        with app.app_context():
+            db.create_all()
+            if not Admin.query.first():
+                admin = Admin(username=os.environ.get("ADMIN_USERNAME", "admin"))
+                admin.set_password(os.environ.get("ADMIN_PASSWORD", "admin123"))
+                db.session.add(admin)
+            if not Profile.query.first():
+                db.session.add(Profile())
+            db.session.commit()
+    except Exception as e:
+        app.logger.error(f"Database bootstrap warning: {e}")
+
+
+init_db_data()
 
 
 # ---------------------------------------------------------------------------
@@ -58,9 +88,41 @@ def save_upload(file_storage, folder):
     filename = secure_filename(file_storage.filename)
     base, ext = os.path.splitext(filename)
     unique_name = f"{base}-{os.urandom(4).hex()}{ext}"
+    if app.config["BLOB_READ_WRITE_TOKEN"] and blob_put is not None:
+        try:
+            blob = blob_put(
+                unique_name,
+                file_storage.stream,
+                {"access": "public", "addRandomSuffix": True},
+            )
+            return blob["url"]
+        except Exception:
+            flash("Upload failed. Please try again.", "error")
+            return None
     os.makedirs(folder, exist_ok=True)
     file_storage.save(os.path.join(folder, unique_name))
     return unique_name
+
+
+def delete_media(stored_value):
+    """Remove an image from Vercel Blob (no-op for local file uploads)."""
+    if not stored_value or not app.config["BLOB_READ_WRITE_TOKEN"] or blob_delete is None:
+        return
+    if stored_value.startswith(("http://", "https://")):
+        try:
+            blob_delete(stored_value)
+        except Exception:
+            pass
+
+
+@app.template_filter("media_url")
+def media_url(value, folder):
+    """Render a stored image path: full URL for Blob, static path for local uploads."""
+    if not value:
+        return ""
+    if value.startswith(("http://", "https://")):
+        return value
+    return url_for("static", filename=f"uploads/{folder}/{value}")
 
 
 @app.context_processor
@@ -206,6 +268,7 @@ def admin_profile():
         image_file = request.files.get("profile_image")
         saved_name = save_upload(image_file, app.config["UPLOAD_FOLDER_PROFILE"])
         if saved_name:
+            delete_media(profile.profile_image)
             profile.profile_image = saved_name
 
         db.session.commit()
@@ -288,6 +351,7 @@ def admin_project_edit(project_id):
         image_file = request.files.get("image")
         saved_name = save_upload(image_file, app.config["UPLOAD_FOLDER_PROJECTS"])
         if saved_name:
+            delete_media(project.image)
             project.image = saved_name
 
         db.session.commit()
@@ -301,10 +365,31 @@ def admin_project_edit(project_id):
 @login_required
 def admin_project_delete(project_id):
     project = db.session.get(Project, project_id) or abort(404)
+    delete_media(project.image)
     db.session.delete(project)
     db.session.commit()
     flash("Project deleted.", "success")
     return redirect(url_for("admin_projects"))
+
+
+@app.route("/admin/projects/reorder", methods=["POST"])
+@login_required
+def admin_projects_reorder():
+    """Set the display order of projects (used on the home page)."""
+    data = request.get_json(silent=True) or {}
+    ids = data.get("ids")
+    if not isinstance(ids, list) or not ids:
+        return {"ok": False, "error": "Invalid payload."}, 400
+    try:
+        ids = [int(pid) for pid in ids]
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "Invalid payload."}, 400
+    for position, project_id in enumerate(ids):
+        project = db.session.get(Project, project_id)
+        if project:
+            project.sort_order = position
+    db.session.commit()
+    return {"ok": True}
 
 
 # --- Skills --------------------------------------------------------------
@@ -400,16 +485,12 @@ def admin_account():
 @app.cli.command("init-db")
 def init_db():
     """Create tables and a default admin user (username: admin / password: admin123)."""
-    with app.app_context():
-        db.create_all()
-        if not Admin.query.filter_by(username="admin").first():
-            admin = Admin(username="admin")
-            admin.set_password("admin123")
-            db.session.add(admin)
-        if not Profile.query.first():
-            db.session.add(Profile())
-        db.session.commit()
-    print("Database initialized. Login with username 'admin' and password 'admin123'.")
+    init_db_data()
+    print(
+        f"Database initialized. Login with username "
+        f"'{os.environ.get('ADMIN_USERNAME', 'admin')}' and password "
+        f"'{os.environ.get('ADMIN_PASSWORD', 'admin123')}'."
+    )
     print("IMPORTANT: change this password immediately after logging in.")
 
 

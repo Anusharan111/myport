@@ -15,43 +15,57 @@
     </div>
     <div class="hero-photo" data-tag="fig. 01 — portrait">
       {% if profile.profile_image %}
-        <img src="{{ url_for('static', filename='uploads/profile/' + profile.profile_image) }}" alt="{{ profile.name }}">
+        <img src="{{ profile.profile_image | media_url('profile') }}" alt="{{ profile.name }}">
       {% else %}
         <div class="placeholder">Add a profile photo<br>from the admin panel</div>
       {% endif %}
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="title-block">
+      <span class="tb-name">{{ profile.name }}</span>
+      <span>{{ profile.title }}</span>
+      <span class="tb-frame">spec. — portfolio</span>
+      <span>rev. {{ now_year }}</span>
+      <span>scale 1:1</span>
     </div>
   </div>
 </section>
 
 <section id="featured-work">
   <div class="wrap">
-    <div class="section-head">
+    <div class="section-head reveal">
       <div>
         <span class="section-label">selected work</span>
         <h2>Featured projects</h2>
       </div>
-      <p class="section-desc">A few things I've built recently. <a href="{{ url_for('projects') }}" style="color:var(--amber)">See all →</a></p>
+      <p class="section-desc">A few things I've built recently. <a href="{{ url_for('projects') }}">See all →</a></p>
     </div>
 
     {% if projects %}
     <div class="project-grid">
       {% for project in projects %}
-      <a class="project-card" href="{{ url_for('project_detail', slug=project.slug) }}">
+      <a class="project-card reveal" style="--i:{{ loop.index0 }}" href="{{ url_for('project_detail', slug=project.slug) }}">
         <div class="project-thumb">
           {% if project.image %}
-            <img src="{{ url_for('static', filename='uploads/projects/' + project.image) }}" alt="{{ project.title }}">
+            <img src="{{ project.image | media_url('projects') }}" alt="{{ project.title }}">
           {% else %}
             <span class="placeholder">no preview</span>
           {% endif %}
+          <span class="card-num">{{ "%02d" | format(loop.index) }}</span>
         </div>
         <div class="project-body">
-          <h3>{{ project.title }}</h3>
+          <div class="card-top">
+            <h3>{{ project.title }}</h3>
+            <span class="card-arrow" aria-hidden="true">↗</span>
+          </div>
           <p>{{ project.summary }}</p>
           {% if project.tech_list() %}
           <div class="tag-row">
             {% for tech in project.tech_list()[:4] %}<span class="tag">--{{ tech }}</span>{% endfor %}
           </div>
           {% endif %}
+          <span class="card-more">view case study<span aria-hidden="true">→</span></span>
         </div>
       </a>
       {% endfor %}
@@ -65,13 +79,13 @@
 {% if skills %}
 <section id="skills">
   <div class="wrap">
-    <div class="section-head">
+    <div class="section-head reveal">
       <div>
         <span class="section-label">toolkit</span>
         <h2>Skills &amp; stack</h2>
       </div>
     </div>
-    <div class="skills-wrap">
+    <div class="skills-wrap reveal" style="--i:1">
       {% set ns = namespace(cat="") %}
       {% for skill in skills %}
         {% if skill.category != ns.cat %}
@@ -92,7 +106,7 @@
 {% endif %}
 
 <section id="cta">
-  <div class="wrap" style="text-align:center;">
+  <div class="wrap reveal" style="text-align:center;">
     <span class="section-label">let's talk</span>
     <h2>Have a project in mind?</h2>
     <p style="max-width:50ch;margin:0 auto 28px;">{{ profile.tagline }}</p>

@@ -20,10 +20,10 @@
       <span class="brand-name">{{ profile.name if profile else 'portfolio' }}</span>
     </a>
     <nav class="site-nav">
-      <a href="{{ url_for('index') }}#home">home</a>
-      <a href="{{ url_for('projects') }}">projects</a>
-      <a href="{{ url_for('about') }}">about</a>
-      <a href="{{ url_for('contact') }}">contact</a>
+      <a href="{{ url_for('index') }}#home" class="{{ 'active' if request.endpoint == 'index' }}">home</a>
+      <a href="{{ url_for('projects') }}" class="{{ 'active' if request.endpoint == 'projects' or request.endpoint == 'project_detail' }}">projects</a>
+      <a href="{{ url_for('about') }}" class="{{ 'active' if request.endpoint == 'about' }}">about</a>
+      <a href="{{ url_for('contact') }}" class="{{ 'active' if request.endpoint == 'contact' }}">contact</a>
     </nav>
     <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">☰</button>
   </div>
@@ -52,6 +52,7 @@
       {% if profile and profile.twitter_url %}<a href="{{ profile.twitter_url }}" target="_blank" rel="noopener">twitter</a>{% endif %}
       <a href="{{ url_for('admin_login') }}" class="admin-dot" title="admin" aria-label="Admin login">&middot;</a>
     </div>
+    <a href="#" class="back-top" aria-label="Back to top">back to top ↑</a>
   </div>
 </footer>
 

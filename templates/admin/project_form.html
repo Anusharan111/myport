@@ -11,7 +11,7 @@
 <div class="admin-card">
   <form method="POST" enctype="multipart/form-data">
     {% if project and project.image %}
-      <img class="current-image" src="{{ url_for('static', filename='uploads/projects/' + project.image) }}" alt="Current image">
+      <img class="current-image" src="{{ project.image | media_url('projects') }}" alt="Current image">
     {% endif %}
     <div class="form-group">
       <label for="image">Project image</label>
