@@ -50,10 +50,29 @@ def load_user(user_id):
 # `flask init-db`. Instead, tables + default admin/profile are created on boot.
 # On Vercel, set ADMIN_USERNAME / ADMIN_PASSWORD env vars to choose your login.
 
+from io import BytesIO
+import base64
+from sqlalchemy import text
+
+try:
+    from PIL import Image
+except ImportError:
+    Image = None
+
+
 def init_db_data():
     try:
         with app.app_context():
             db.create_all()
+
+            # Migrate column types to TEXT if created originally as VARCHAR(255)
+            try:
+                db.session.execute(text("ALTER TABLE profile ALTER COLUMN profile_image TYPE TEXT;"))
+                db.session.execute(text("ALTER TABLE project ALTER COLUMN image TYPE TEXT;"))
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
             if not Admin.query.first():
                 admin = Admin(username=os.environ.get("ADMIN_USERNAME", "admin"))
                 admin.set_password(os.environ.get("ADMIN_PASSWORD", "admin123"))
@@ -71,9 +90,6 @@ init_db_data()
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-import base64
-
 
 def allowed_file(filename):
     return (
@@ -95,12 +111,14 @@ def save_upload(file_storage, folder):
         flash("Unsupported image type. Use png, jpg, jpeg, gif, webp or svg.", "error")
         return None
 
+    ext = file_storage.filename.rsplit(".", 1)[1].lower()
+
     # 1. Use Vercel Blob if token is available
     if app.config.get("BLOB_READ_WRITE_TOKEN") and blob_put is not None:
         try:
             filename = secure_filename(file_storage.filename)
-            base, ext = os.path.splitext(filename)
-            unique_name = f"{base}-{os.urandom(4).hex()}{ext}"
+            base, ext_name = os.path.splitext(filename)
+            unique_name = f"{base}-{os.urandom(4).hex()}{ext_name}"
             blob = blob_put(
                 unique_name,
                 file_storage.stream,
@@ -115,11 +133,26 @@ def save_upload(file_storage, folder):
         file_bytes = file_storage.read()
         if not file_bytes:
             return None
-        ext = file_storage.filename.rsplit(".", 1)[1].lower()
+
+        # Compress and resize if Pillow is available
+        if Image is not None and ext in ("jpg", "jpeg", "png", "webp"):
+            try:
+                img = Image.open(BytesIO(file_bytes))
+                if img.mode in ("RGBA", "P") and ext in ("jpg", "jpeg"):
+                    img = img.convert("RGB")
+                img.thumbnail((1200, 1200))
+                buf = BytesIO()
+                save_fmt = "PNG" if ext == "png" else ("WEBP" if ext == "webp" else "JPEG")
+                img.save(buf, format=save_fmt, quality=82, optimize=True)
+                file_bytes = buf.getvalue()
+            except Exception:
+                pass
+
         mime = "image/jpeg" if ext in ("jpg", "jpeg") else ("image/svg+xml" if ext == "svg" else f"image/{ext}")
         encoded = base64.b64encode(file_bytes).decode("utf-8")
         return f"data:{mime};base64,{encoded}"
-    except Exception:
+    except Exception as err:
+        app.logger.error(f"Image upload error: {err}")
         flash("Image processing failed. Please try again or use an image URL.", "error")
         return None
 
