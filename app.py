@@ -20,7 +20,13 @@ try:
 except ImportError:
     blob_put = blob_delete = None
 
-app = Flask(__name__)
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+app = Flask(
+    __name__,
+    template_folder=os.path.join(BASE_DIR, "templates"),
+    static_folder=os.path.join(BASE_DIR, "static"),
+)
 app.config.from_object(Config)
 
 db.init_app(app)
