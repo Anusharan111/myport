@@ -14,9 +14,14 @@
       <img class="current-image" src="{{ project.image | media_url('projects') }}" alt="Current image">
     {% endif %}
     <div class="form-group">
-      <label for="image">Project image</label>
+      <label for="image">Project image upload</label>
       <input type="file" id="image" name="image" accept="image/*">
-      <div class="form-hint">Recommended size ~1200x750. Leave empty to keep the current image.</div>
+      <div class="form-hint">Upload an image file (PNG, JPG, WEBP) or paste an image link below.</div>
+    </div>
+
+    <div class="form-group">
+      <label for="image_url">Or Image Direct URL (e.g. Imgur, GitHub, Unsplash)</label>
+      <input type="url" id="image_url" name="image_url" value="{{ project.image if project and project.image.startswith('http') else '' }}" placeholder="https://...">
     </div>
 
     <div class="form-group">

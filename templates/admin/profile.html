@@ -11,9 +11,14 @@
       <img class="current-image" src="{{ profile.profile_image | media_url('profile') }}" alt="Current photo">
     {% endif %}
     <div class="form-group">
-      <label for="profile_image">Profile photo</label>
+      <label for="profile_image">Profile photo upload</label>
       <input type="file" id="profile_image" name="profile_image" accept="image/*">
-      <div class="form-hint">PNG, JPG, GIF, WEBP or SVG. Leave empty to keep the current photo.</div>
+      <div class="form-hint">Upload an image file (PNG, JPG, WEBP) or paste an image link below.</div>
+    </div>
+
+    <div class="form-group">
+      <label for="profile_image_url">Or Photo Direct URL (e.g. Imgur, GitHub, Unsplash)</label>
+      <input type="url" id="profile_image_url" name="profile_image_url" value="{{ profile.profile_image if profile.profile_image.startswith('http') else '' }}" placeholder="https://...">
     </div>
 
     <div class="form-row">

@@ -35,7 +35,7 @@ class Profile(db.Model):
     linkedin_url = db.Column(db.String(255), default="")
     twitter_url = db.Column(db.String(255), default="")
     resume_url = db.Column(db.String(255), default="")
-    profile_image = db.Column(db.String(255), default="")
+    profile_image = db.Column(db.Text, default="")
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
@@ -58,7 +58,7 @@ class Project(db.Model):
     summary = db.Column(db.String(300), default="")
     description = db.Column(db.Text, default="")
     tech_stack = db.Column(db.String(300), default="")  # comma separated
-    image = db.Column(db.String(255), default="")
+    image = db.Column(db.Text, default="")
     github_link = db.Column(db.String(255), default="")
     live_link = db.Column(db.String(255), default="")
     featured = db.Column(db.Boolean, default=False)

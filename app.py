@@ -72,6 +72,9 @@ init_db_data()
 # Helpers
 # ---------------------------------------------------------------------------
 
+import base64
+
+
 def allowed_file(filename):
     return (
         "." in filename
@@ -91,11 +94,13 @@ def save_upload(file_storage, folder):
     if not allowed_file(file_storage.filename):
         flash("Unsupported image type. Use png, jpg, jpeg, gif, webp or svg.", "error")
         return None
-    filename = secure_filename(file_storage.filename)
-    base, ext = os.path.splitext(filename)
-    unique_name = f"{base}-{os.urandom(4).hex()}{ext}"
-    if app.config["BLOB_READ_WRITE_TOKEN"] and blob_put is not None:
+
+    # 1. Use Vercel Blob if token is available
+    if app.config.get("BLOB_READ_WRITE_TOKEN") and blob_put is not None:
         try:
+            filename = secure_filename(file_storage.filename)
+            base, ext = os.path.splitext(filename)
+            unique_name = f"{base}-{os.urandom(4).hex()}{ext}"
             blob = blob_put(
                 unique_name,
                 file_storage.stream,
@@ -103,18 +108,27 @@ def save_upload(file_storage, folder):
             )
             return blob["url"]
         except Exception:
-            flash("Upload failed. Please try again.", "error")
+            pass
+
+    # 2. Store image directly as base64 data URL in PostgreSQL (persists across serverless cold starts)
+    try:
+        file_bytes = file_storage.read()
+        if not file_bytes:
             return None
-    os.makedirs(folder, exist_ok=True)
-    file_storage.save(os.path.join(folder, unique_name))
-    return unique_name
+        ext = file_storage.filename.rsplit(".", 1)[1].lower()
+        mime = "image/jpeg" if ext in ("jpg", "jpeg") else ("image/svg+xml" if ext == "svg" else f"image/{ext}")
+        encoded = base64.b64encode(file_bytes).decode("utf-8")
+        return f"data:{mime};base64,{encoded}"
+    except Exception:
+        flash("Image processing failed. Please try again or use an image URL.", "error")
+        return None
 
 
 def delete_media(stored_value):
-    """Remove an image from Vercel Blob (no-op for local file uploads)."""
-    if not stored_value or not app.config["BLOB_READ_WRITE_TOKEN"] or blob_delete is None:
+    """Remove an image from Vercel Blob (no-op for database data URLs or local files)."""
+    if not stored_value or not app.config.get("BLOB_READ_WRITE_TOKEN") or blob_delete is None:
         return
-    if stored_value.startswith(("http://", "https://")):
+    if stored_value.startswith(("http://", "https://")) and "vercel-storage.com" in stored_value:
         try:
             blob_delete(stored_value)
         except Exception:
@@ -123,10 +137,10 @@ def delete_media(stored_value):
 
 @app.template_filter("media_url")
 def media_url(value, folder):
-    """Render a stored image path: full URL for Blob, static path for local uploads."""
+    """Render a stored image: Base64 data URL, full HTTP URL, or local static file."""
     if not value:
         return ""
-    if value.startswith(("http://", "https://")):
+    if value.startswith(("http://", "https://", "data:")):
         return value
     return url_for("static", filename=f"uploads/{folder}/{value}")
 
@@ -271,11 +285,16 @@ def admin_profile():
         profile.twitter_url = request.form.get("twitter_url", "").strip()
         profile.resume_url = request.form.get("resume_url", "").strip()
 
-        image_file = request.files.get("profile_image")
-        saved_name = save_upload(image_file, app.config["UPLOAD_FOLDER_PROFILE"])
-        if saved_name:
+        image_url = request.form.get("profile_image_url", "").strip()
+        if image_url:
             delete_media(profile.profile_image)
-            profile.profile_image = saved_name
+            profile.profile_image = image_url
+        else:
+            image_file = request.files.get("profile_image")
+            saved_name = save_upload(image_file, app.config["UPLOAD_FOLDER_PROFILE"])
+            if saved_name:
+                delete_media(profile.profile_image)
+                profile.profile_image = saved_name
 
         db.session.commit()
         flash("Profile updated.", "success")
@@ -321,10 +340,14 @@ def admin_project_new():
             sort_order=int(request.form.get("sort_order") or 0),
         )
 
-        image_file = request.files.get("image")
-        saved_name = save_upload(image_file, app.config["UPLOAD_FOLDER_PROJECTS"])
-        if saved_name:
-            project.image = saved_name
+        image_url = request.form.get("image_url", "").strip()
+        if image_url:
+            project.image = image_url
+        else:
+            image_file = request.files.get("image")
+            saved_name = save_upload(image_file, app.config["UPLOAD_FOLDER_PROJECTS"])
+            if saved_name:
+                project.image = saved_name
 
         db.session.add(project)
         db.session.commit()
@@ -354,11 +377,16 @@ def admin_project_edit(project_id):
         project.featured = bool(request.form.get("featured"))
         project.sort_order = int(request.form.get("sort_order") or 0)
 
-        image_file = request.files.get("image")
-        saved_name = save_upload(image_file, app.config["UPLOAD_FOLDER_PROJECTS"])
-        if saved_name:
+        image_url = request.form.get("image_url", "").strip()
+        if image_url:
             delete_media(project.image)
-            project.image = saved_name
+            project.image = image_url
+        else:
+            image_file = request.files.get("image")
+            saved_name = save_upload(image_file, app.config["UPLOAD_FOLDER_PROJECTS"])
+            if saved_name:
+                delete_media(project.image)
+                project.image = saved_name
 
         db.session.commit()
         flash("Project updated.", "success")
