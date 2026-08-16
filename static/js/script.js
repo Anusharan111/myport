@@ -12,6 +12,14 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // Reveal the contact email from a reversed string (defeats naive scrapers)
+  var mailEl = document.getElementById("contact-email");
+  if (mailEl && mailEl.dataset.emailRev) {
+    var email = mailEl.dataset.emailRev.split("").reverse().join("");
+    mailEl.href = "mailto:" + email;
+    mailEl.textContent = email;
+  }
+
   // Auto-dismiss flash messages
   document.querySelectorAll(".flash").forEach(function (el) {
     setTimeout(function () {

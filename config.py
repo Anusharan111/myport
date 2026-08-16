@@ -31,6 +31,18 @@ class Config:
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # Session cookie hardening. Vercel terminates TLS, so the Secure flag is
+    # only enabled there; locally (plain http) it would break the session.
+    _on_serverless = bool(
+        os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+    )
+    SESSION_COOKIE_SECURE = _on_serverless
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_SECURE = _on_serverless
+    REMEMBER_COOKIE_HTTPONLY = True
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+
     # Vercel: set BLOB_READ_WRITE_TOKEN (from a Vercel Blob Store) so uploaded
     # images persist. Without it, uploads are stored on disk.
     BLOB_READ_WRITE_TOKEN = os.environ.get("BLOB_READ_WRITE_TOKEN", "")

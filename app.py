@@ -1,11 +1,12 @@
 import os
 import re
 import unicodedata
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import (
-    Flask, render_template, redirect, url_for, request, flash, abort, send_from_directory
+    Flask, render_template, redirect, url_for, request, flash, abort,
+    send_from_directory, Response
 )
 from flask_login import (
     LoginManager, login_user, logout_user, login_required, current_user
@@ -13,7 +14,7 @@ from flask_login import (
 from werkzeug.utils import secure_filename
 
 from config import Config
-from models import db, Admin, Profile, Skill, Project, Message
+from models import db, Admin, Profile, Skill, Project, Message, LoginAttempt
 
 try:
     from vercel_blob import put as blob_put, delete as blob_delete
@@ -85,6 +86,35 @@ def init_db_data():
 
 
 init_db_data()
+
+
+# ---------------------------------------------------------------------------
+# Security headers
+# ---------------------------------------------------------------------------
+
+@app.after_request
+def add_security_headers(response):
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault(
+        "Permissions-Policy",
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    )
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src https://fonts.gstatic.com; "
+        "img-src 'self' data: https:; "
+        "connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; "
+        "form-action 'self'; "
+        "frame-ancestors 'none'; "
+        "base-uri 'self'; "
+        "object-src 'none'",
+    )
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -193,6 +223,29 @@ def get_profile():
 
 
 # ---------------------------------------------------------------------------
+# Security.txt
+# ---------------------------------------------------------------------------
+
+@app.route("/.well-known/security.txt")
+def security_txt():
+    email = get_profile().email or "security@example.com"
+    canonical = request.host_url.rstrip("/") + "/.well-known/security.txt"
+    content = (
+        "Contact: mailto:" + email + "\n"
+        "Preferred-Languages: en\n"
+        "Canonical: " + canonical + "\n"
+        "Policy: " + canonical + "\n"
+        "Expires: 2027-08-16T00:00:00.000Z\n"
+    )
+    return Response(content, mimetype="text/plain")
+
+
+@app.route("/security.txt")
+def security_txt_redirect():
+    return redirect(url_for("security_txt"))
+
+
+# ---------------------------------------------------------------------------
 # Public routes
 # ---------------------------------------------------------------------------
 
@@ -255,20 +308,63 @@ def contact():
 # Admin auth
 # ---------------------------------------------------------------------------
 
+LOGIN_ATTEMPT_LIMIT = 10
+LOGIN_ATTEMPT_WINDOW_MINUTES = 15
+
+
+def client_ip():
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def safe_next(target):
+    """Allow only same-site relative redirects (blocks open redirects)."""
+    if not target or target.startswith("//"):
+        return None
+    return target if target.startswith("/") else None
+
+
 @app.route("/admin/login", methods=["GET", "POST"])
 def admin_login():
     if current_user.is_authenticated:
         return redirect(url_for("admin_dashboard"))
 
     if request.method == "POST":
+        ip = client_ip()
+        since = datetime.utcnow() - timedelta(minutes=LOGIN_ATTEMPT_WINDOW_MINUTES)
+        recent_failures = LoginAttempt.query.filter(
+            LoginAttempt.ip == ip,
+            LoginAttempt.success.is_(False),
+            LoginAttempt.created_at > since,
+        ).count()
+
+        if recent_failures >= LOGIN_ATTEMPT_LIMIT:
+            flash(
+                "Too many failed login attempts. Please wait a few minutes and try again.",
+                "error",
+            )
+            return render_template("admin/login.html"), 429
+
+        # Keep the attempts table small
+        LoginAttempt.query.filter(
+            LoginAttempt.created_at < datetime.utcnow() - timedelta(hours=24)
+        ).delete()
+
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
         admin = Admin.query.filter_by(username=username).first()
 
         if admin and admin.check_password(password):
+            LoginAttempt.query.filter(LoginAttempt.ip == ip).delete()
+            db.session.add(LoginAttempt(ip=ip, username=username, success=True))
+            db.session.commit()
             login_user(admin)
-            next_page = request.args.get("next")
-            return redirect(next_page or url_for("admin_dashboard"))
+            return redirect(safe_next(request.args.get("next")) or url_for("admin_dashboard"))
+
+        db.session.add(LoginAttempt(ip=ip, username=username, success=False))
+        db.session.commit()
         flash("Invalid username or password.", "error")
 
     return render_template("admin/login.html")
